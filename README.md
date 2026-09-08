@@ -27,24 +27,22 @@
 6. [Components](#-components)
 7. [Talking to CHAMELEON](#-talking-to-chameleon)
 8. [Safety & Approval Flow](#-safety--approval-flow)
-9. [Permanent Memory (LIMITATIONS.md)](#-permanent-memory-limitationsmd)
-10. [Environment Variables](#-environment-variables)
-11. [Deploying the Server](#-deploying-the-server)
-12. [Testing & Benchmarks](#-testing--benchmarks)
-13. [Troubleshooting](#-troubleshooting)
-14. [Learn More](#-learn-more)
+9. [Environment Variables](#-environment-variables)
+10. [Deploying the Server](#-deploying-the-server)
+11. [Testing & Benchmarks](#-testing--benchmarks)
+12. [Troubleshooting](#-troubleshooting)
 
 <br/>
 
 ## What is CHAMELEON?
 
-**CHAMELEON** is a privacy-preserving visual browser agent that runs as a Chrome extension. You give it a task in plain English, and it reads your screen, strips out anything sensitive before it ever leaves your device, and asks a reasoning server what to do next — **with you staying in full control**.
+**CHAMELEON** is a privacy preserving visual browser agent that runs as a Chrome extension. You give it a task in plain English, and it reads your screen, strips out anything sensitive before it ever leaves your device, and asks a reasoning server what to do next  **with you staying in full control**.
 
-CHAMELEON stands out with its **"sanitize-before-send"** pipeline: every password, email, face, and document is detected and redacted locally, and an independent outbound firewall double-checks the payload before it's allowed anywhere near the network.
+CHAMELEON stands out with its **"sanitize before send"** pipeline: every password, email, face, and document is detected and redacted locally, and an independent outbound firewall double-checks the payload before it's allowed anywhere near the network.
 
 **CHAMELEON can:**
-- Read and understand the current page (DOM, OCR, and real on-device vision models)
-- Detect and redact sensitive data locally — passwords, emails, phone numbers, addresses, faces, documents
+- Read and understand the current page (DOM, OCR, and real ondevice vision models)
+- Detect and redact sensitive data locally passwords, emails, phone numbers, addresses, faces, documents
 - Classify screen regions (document, table, chart) with a real trained Vision Transformer
 - Ask a server for the next action and execute it (after your confirmation)
 - Show live confidence and privacy metrics while it works
@@ -121,6 +119,8 @@ npx vite build --outDir dist-chrome
 npx vite build --config vite.background.config.ts --outDir dist-chrome
 npx vite build --config vite.content.config.ts --outDir dist-chrome
 cp manifest.chrome.json dist-chrome/manifest.json
+or
+copy manifest.chrome.json dist-chrome\manifest.json
 ```
 
 You will see the CHAMELEON icon appear in your toolbar.
@@ -160,24 +160,6 @@ CHAMELEON will show live privacy and confidence metrics in real-time and ask for
 - The server can never issue an arbitrary instruction — only a fixed, validated set of actions (click, type, scroll, focus, extract).
 
 This makes CHAMELEON one of the **safest** browser agents available.
-
-<br/>
-
-## Permanent Memory (LIMITATIONS.md)
-
-Read `docs/LIMITATIONS.md` before assuming anything is finished. CHAMELEON documents every real gap and every real fix in the open — nothing is quietly hidden.
-
-**Example entries:**
-
-```markdown
-# What's real vs what isn't
-
-- OCR: real, self-hosted, bug-fixed, verified in a live browser
-- Face detection: real, bundled model, verified against a real photo
-- Vision Transformer: real, trained from scratch, verified for numerical parity
-- Firefox: written to spec, never verified in an actual Firefox
-- Resource/latency: real numbers, disclosed 1-vCPU/no-GPU methodology
-```
 
 <br/>
 
