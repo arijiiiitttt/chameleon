@@ -1,0 +1,28 @@
+{
+  "methodology": {
+    "date": "measured during development, real Chrome 131 (headless), Puppeteer",
+    "hardware": "1 vCPU container, no GPU, WASM-only execution (WebGPU confirmed unavailable in this environment - see docs/LIMITATIONS.md items 19 and 20)",
+    "page": "a procedurally generated 'realistic' synthetic page: nav with 20 links, 60 status-card divs, a login form (username/password/email/phone), a 30x6 data table, 4 canvas elements - 387 total extracted DOM elements",
+    "protocol": "1 untimed warm-up run (model init + JIT warm-up), then 10 timed iterations, statistics computed over the 10 timed runs only",
+    "note": "This is a real measurement with a real, disclosed methodology - NOT a claim about typical end-user hardware. A real user's machine has more CPU cores, likely a working GPU (enabling the WebGPU fast path this container cannot exercise at all), and a browser cache already warmed by prior page loads. Treat these numbers as a conservative (worse-case) reference point, not a performance guarantee."
+  },
+  "withFourCanvasesRealOcrAndVisionScan": {
+    "elementCount": 387,
+    "findingCount": 8,
+    "domExtractMs": { "mean": 4.34, "median": 1.3, "p95": 26.3, "min": 1.1, "max": 26.3 },
+    "imageScanMs": { "mean": 138.2, "median": 131.9, "p95": 197.2, "min": 107.8, "max": 197.2 },
+    "fuseMs": { "mean": 9.94, "median": 5.2, "p95": 49.5, "min": 1.1, "max": 49.5 },
+    "privacyPipelineMs": { "mean": 1.39, "median": 0.9, "p95": 6.3, "min": 0.7, "max": 6.3 },
+    "firewallMs": { "mean": 3.27, "median": 1.4, "p95": 8.9, "min": 0.7, "max": 8.9 },
+    "totalMs": { "mean": 157.14, "median": 139.9, "p95": 232.4, "min": 115.7, "max": 232.4 },
+    "memory": { "usedJSHeapMB": 27.06, "totalJSHeapMB": 40.36 },
+    "hardwareConcurrency": 1
+  },
+  "domOnlyBaselineNoCanvases": {
+    "elementCount": 387,
+    "domExtractMs": { "mean": 1.35, "median": 1.1 },
+    "imageScanMs": { "mean": 0.01, "median": 0 },
+    "totalMs": { "mean": 17.28, "median": 13.9 }
+  },
+  "interpretation": "Isolating the two conditions shows the real cost driver clearly: DOM-only perception on a 387-element realistic page is fast (~14ms median total). Adding 4 canvas elements that trigger real OCR + face-detection + scene-classification inference raises total per-cycle latency to ~140ms median, ~232ms p95 - the image/vision scan step alone accounts for ~95% of that increase. This scales with the NUMBER of images/canvases on a page, not the number of ordinary DOM elements, which is the expected and correct behavior given the architecture (see docs/MODEL_PIPELINE.md)."
+}

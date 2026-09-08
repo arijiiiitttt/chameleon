@@ -1,0 +1,31 @@
+{
+  "name": "chameleon",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build:packages": "npm run build --workspace=packages/shared-types && npm run build --workspace=packages/action-dsl && npm run build --workspace=packages/privacy-policy && npm run build --workspace=packages/screen-state && npm run build --workspace=packages/protocol && npm run build --workspace=packages/evaluation",
+    "build": "npm run build:packages && npm run build --workspace=apps/server && npm run build --workspace=apps/extension",
+    "test": "vitest run",
+    "test:privacy": "vitest run tests/security",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "typecheck": "tsc --noEmit -p tsconfig.check.json",
+    "benchmark": "npm run build:packages && tsx benchmark/run-benchmark.ts",
+    "dev:server": "npm run build:packages && npm run dev --workspace=apps/server",
+    "smoke-test": "npm run build:packages && tsx apps/server/scripts/smoke-test.ts",
+    "build:extension": "npm run build:packages && npm run build --workspace=apps/extension",
+    "build:server": "npm run build:packages && npm run build --workspace=apps/server"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^20.14.15",
+    "jsdom": "^30.0.1",
+    "tsx": "^4.16.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

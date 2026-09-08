@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: chameleon-server
+    runtime: node
+    plan: free
+    rootDir: apps/server
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 8787
+      - key: AI_PROVIDER
+        value: mock
+      - key: AI_BASE_URL
+        sync: false
+      - key: AI_MODEL
+        sync: false
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_VISION_ENABLED
+        value: "false"
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: MAX_REQUEST_BYTES
+        value: "262144"

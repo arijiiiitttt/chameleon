@@ -1,0 +1,14 @@
+{
+  "name": "@chameleon/screen-state",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "dependencies": {
+    "@chameleon/shared-types": "*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  }
+}

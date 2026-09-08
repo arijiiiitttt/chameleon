@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "CHAMELEON - Privacy-Preserving Visual Browser Agent",
+  "version": "0.1.0",
+  "description": "CHAMELEON: privacy-preserving on-device visual perception for a light-weight browser agent, built for ISRO PS 26171.",
+  "action": {
+    "default_popup": "src/popup/index.html",
+    "default_title": "CHAMELEON",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": [],
+  "web_accessible_resources": [
+    {
+      "resources": ["models/*.onnx", "*.wasm", "tesseract/*", "ort/*"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "options_page": "src/options/index.html",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

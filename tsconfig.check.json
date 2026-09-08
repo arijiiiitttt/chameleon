@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node", "chrome"],
+    "baseUrl": ".",
+    "paths": {
+      "@chameleon/shared-types": ["packages/shared-types/src/index.ts"],
+      "@chameleon/privacy-policy": ["packages/privacy-policy/src/index.ts"],
+      "@chameleon/evaluation": ["packages/evaluation/src/index.ts"],
+      "@chameleon/screen-state": ["packages/screen-state/src/index.ts"],
+      "@chameleon/action-dsl": ["packages/action-dsl/src/index.ts"],
+      "@chameleon/protocol": ["packages/protocol/src/index.ts"]
+    },
+    "resolveJsonModule": true
+  },
+  "include": ["packages/**/*.ts", "apps/**/*.ts", "apps/**/*.tsx", "tests/**/*.ts", "benchmark/**/*.ts", "datasets/**/*.ts"],
+  "exclude": ["node_modules", "**/dist/**", "**/dist-chrome/**", "**/dist-firefox/**"]
+}

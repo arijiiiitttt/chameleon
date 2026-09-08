@@ -1,0 +1,10 @@
+{
+  "classes": [
+    "document",
+    "chart",
+    "photo",
+    "code",
+    "table"
+  ],
+  "val_accuracy": 0.9866666666666667
+}

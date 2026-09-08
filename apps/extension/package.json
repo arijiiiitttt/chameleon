@@ -1,0 +1,32 @@
+{
+  "name": "@chameleon/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build:chrome": "vite build --outDir dist-chrome && vite build --config vite.background.config.ts --outDir dist-chrome && vite build --config vite.content.config.ts --outDir dist-chrome && cp manifest.chrome.json dist-chrome/manifest.json",
+    "build:firefox": "vite build --outDir dist-firefox && vite build --config vite.background.config.ts --outDir dist-firefox && vite build --config vite.content.config.ts --outDir dist-firefox && cp manifest.firefox.json dist-firefox/manifest.json",
+    "build": "npm run build:chrome"
+  },
+  "dependencies": {
+    "@chameleon/action-dsl": "*",
+    "@chameleon/evaluation": "*",
+    "@chameleon/privacy-policy": "*",
+    "@chameleon/protocol": "*",
+    "@chameleon/screen-state": "*",
+    "@chameleon/shared-types": "*",
+    "onnxruntime-web": "^1.29.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.270",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  }
+}

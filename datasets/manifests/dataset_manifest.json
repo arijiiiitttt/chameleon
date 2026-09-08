@@ -1,0 +1,69 @@
+{
+  "datasets": [
+    {
+      "name": "synthetic-privacy",
+      "version": "0.1.0",
+      "license": "N/A - generated in-repo, not redistributed third-party data",
+      "source": "benchmark/synthetic-pages.ts (this repository)",
+      "purpose": "controlled PII/redaction ground truth for ISRO metrics #2 and #3",
+      "status": "implemented",
+      "checksum": null,
+      "preprocessingVersion": "1"
+    },
+    {
+      "name": "ScreenSpot",
+      "version": null,
+      "license": "See upstream repository before use - not yet verified",
+      "source": "https://github.com/njucckevin/SeeClick (ScreenSpot benchmark)",
+      "purpose": "GUI visual grounding / click-target accuracy (ISRO metric #1)",
+      "status": "not_implemented",
+      "checksum": null,
+      "preprocessingVersion": null
+    },
+    {
+      "name": "ScreenSpot-Pro",
+      "version": null,
+      "license": "See upstream repository before use - not yet verified",
+      "source": "https://github.com/likaixin2000/ScreenSpot-Pro",
+      "purpose": "high-resolution/professional-software GUI grounding",
+      "status": "not_implemented",
+      "checksum": null,
+      "preprocessingVersion": null
+    },
+    {
+      "name": "Mind2Web",
+      "version": null,
+      "license": "See upstream repository before use - not yet verified",
+      "source": "https://osu-nlp-group.github.io/Mind2Web/",
+      "purpose": "instruction following, DOM/action grounding, cross-website generalization (ISRO metric #1)",
+      "status": "not_implemented",
+      "checksum": null,
+      "preprocessingVersion": null
+    },
+    {
+      "name": "VisualWebArena",
+      "version": null,
+      "license": "See upstream repository before use - not yet verified",
+      "source": "https://jykoh.com/vwa",
+      "purpose": "end-to-end multimodal web-agent task evaluation",
+      "status": "not_implemented",
+      "checksum": null,
+      "preprocessingVersion": null
+    },
+    {
+      "name": "Online-Mind2Web",
+      "version": null,
+      "license": "See upstream repository and licensing/benchmark policy before use - not yet verified",
+      "source": "https://osu-nlp-group.github.io/Mind2Web/",
+      "purpose": "broader live-web agent evaluation, where licensing and benchmark policy permit",
+      "status": "not_implemented",
+      "checksum": null,
+      "preprocessingVersion": null
+    }
+  ],
+  "policy": {
+    "trainOnTestSetProhibited": true,
+    "redistributionRequiresLicenseCheck": true,
+    "isroFinaleData": "must be ingested through the same DatasetAdapter interface (datasets/adapters/benchmark-sample.ts) without redesigning the evaluation engine; must never be claimed as the official ISRO evaluation dataset by any dataset in this manifest"
+  }
+}
