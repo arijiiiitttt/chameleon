@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build:chrome": "vite build --outDir dist-chrome && vite build --config vite.background.config.ts --outDir dist-chrome && vite build --config vite.content.config.ts --outDir dist-chrome && cp manifest.chrome.json dist-chrome/manifest.json",
-    "build:firefox": "vite build --outDir dist-firefox && vite build --config vite.background.config.ts --outDir dist-firefox && vite build --config vite.content.config.ts --outDir dist-firefox && cp manifest.firefox.json dist-firefox/manifest.json",
+    "build:chrome": "vite build --outDir dist-chrome && vite build --config vite.background.config.ts --outDir dist-chrome && vite build --config vite.content.config.ts --outDir dist-chrome && copy \"manifest.chrome.json\" \"dist-chrome\\manifest.json\"",
+    "build:firefox": "vite build --outDir dist-firefox && vite build --config vite.background.config.ts --outDir dist-firefox && vite build --config vite.content.config.ts --outDir dist-firefox && copy \"manifest.firefox.json\" \"dist-firefox\\manifest.json\"",
     "build": "npm run build:chrome"
   },
   "dependencies": {

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "CHAMELEON - Privacy-Preserving Visual Browser Agent",
+  "name": "Chameleon",
   "version": "0.1.0",
-  "description": "CHAMELEON: privacy-preserving on-device visual perception for a light-weight browser agent, built for ISRO PS 26171.",
+  "description": "privacy preserving on device visual perception for a light weight browser agent.",
   "browser_specific_settings": {
     "gecko": {
       "id": "chameleon@isro-ps26171.example"
@@ -10,38 +10,62 @@
   },
   "action": {
     "default_popup": "src/popup/index.html",
-    "default_title": "CHAMELEON",
+    "default_title": "Chameleon",
     "default_icon": {
-      "16": "icons/icon16.png",
-      "32": "icons/icon32.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
+      "16": "icons/icon.png",
+      "32": "icons/icon.png",
+      "48": "icons/icon.png",
+      "128": "icons/icon.png"
     }
   },
   "background": {
-    "scripts": ["background.js"]
+    "scripts": [
+      "background.js"
+    ]
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
-  "permissions": ["activeTab", "scripting", "storage"],
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://localhost:8787/*",
+    "https://localhost:8787/*",
+    "http://127.0.0.1:8787/*",
+    "https://",
+    "https://*/*"
+  ],
   "web_accessible_resources": [
     {
-      "resources": ["models/*.onnx", "*.wasm", "tesseract/*", "ort/*"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "models/*.onnx",
+        "*.wasm",
+        "tesseract/*",
+        "ort/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
   "options_ui": {
     "page": "src/options/index.html"
   },
   "icons": {
-    "16": "icons/icon16.png",
-    "32": "icons/icon32.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "16": "icons/icon.png",
+    "32": "icons/icon.png",
+    "48": "icons/icon.png",
+    "128": "icons/icon.png"
   }
 }

@@ -3,6 +3,51 @@ import { TabManager } from "./tab-manager.js";
 
 const tabManager = new TabManager();
 
+// Must match the value used in the content script / Vite env.
+const SERVER_URL = "http://localhost:8787";
+
+const defaultStatus: AgentStatusMessage = {
+  type: "AGENT_STATUS",
+  client: {
+    localVision: "READY",
+    ocr: "READY",
+    privacyEngine: "ACTIVE",
+    firewall: "ACTIVE",
+    actionValidator: "ACTIVE",
+  },
+  server: { api: "UNKNOWN", provider: "—" },
+  privacy: { rawPiiSent: 0, sensitiveDetected: 0, redacted: 0, blocked: 0 },
+  performance: { totalMs: 0, timings: {} },
+  agentState: "IDLE",
+  lastActionConfidence: null,
+};
+
+/** Live health check against the reasoning server. */
+async function checkServerHealth(): Promise<{ api: "CONNECTED" | "DISCONNECTED"; provider: string }> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
+
+    const res = await fetch(`${SERVER_URL}/health`, {
+      method: "GET",
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      return { api: "DISCONNECTED", provider: "—" };
+    }
+
+    const body = (await res.json()) as { status?: string; aiProvider?: string };
+    return {
+      api: body.status === "ok" ? "CONNECTED" : "DISCONNECTED",
+      provider: body.aiProvider ?? "unknown",
+    };
+  } catch {
+    return { api: "DISCONNECTED", provider: "—" };
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!isRuntimeMessage(message)) return false;
 
@@ -16,11 +61,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "REQUEST_STATUS") {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const tabId = tabs[0]?.id;
-      const status = tabId !== undefined ? tabManager.getStatus(tabId) : undefined;
-      if (status) sendResponse(status);
-    });
+    // Always do a live health check so the popup reflects reality.
+    (async () => {
+      const health = await checkServerHealth();
+
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tabId = tabs[0]?.id;
+        const cached = tabId !== undefined ? tabManager.getStatus(tabId) : undefined;
+
+        const status: AgentStatusMessage = {
+          ...(cached ?? defaultStatus),
+          type: "AGENT_STATUS",
+          server: {
+            api: health.api,
+            provider: health.provider,
+          },
+        };
+
+        sendResponse(status);
+      });
+    })();
+
     return true; // keep the message channel open for the async sendResponse
   }
 
@@ -34,16 +95,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "CAPTURE_VISIBLE_TAB") {
-    // chrome.tabs.captureVisibleTab is ONLY callable from a background/
-    // service-worker context, never from a content script - this is why
-    // the VLM screenshot channel needs this extra hop instead of the
-    // content script capturing directly. The captured PNG is a raw,
-    // UNREDACTED screenshot at this point - it is returned to the
-    // requesting content script and MUST be pixel-redacted there
-    // (content-script.ts calls applyImageRedaction against the privacy
-    // pipeline's own imageRedactionRegions) before it can ever become
-    // part of a sanitized payload. This handler itself sends nothing
-    // over the network and stores nothing - it is a one-shot relay.
     const tabId = sender.tab?.id;
     if (tabId === undefined) {
       sendResponse({ type: "CAPTURE_VISIBLE_TAB_RESULT", dataUrl: null, error: "NO_SENDER_TAB" });
@@ -60,7 +111,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       sendResponse({ type: "CAPTURE_VISIBLE_TAB_RESULT", dataUrl });
     });
-    return true; // keep the message channel open for the async sendResponse
+    return true;
   }
 
   return false;
