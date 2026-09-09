@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
     "benchmark": "npm run build:packages && tsx benchmark/run-benchmark.ts",
     "dev:server": "npm run build:packages && npm run dev --workspace=apps/server",
+    "dev:server:nodemon": "npm run build:packages && npm run dev:nodemon --workspace=apps/server",
     "smoke-test": "npm run build:packages && tsx apps/server/scripts/smoke-test.ts",
     "build:extension": "npm run build:packages && npm run build --workspace=apps/extension",
     "build:server": "npm run build:packages && npm run build --workspace=apps/server"

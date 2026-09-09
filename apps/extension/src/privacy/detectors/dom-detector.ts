@@ -89,6 +89,18 @@ export function detectDomSensitivity(
     findings.push({
       id: `dom_${signal.elementId}`,
       category: result.category,
+      // A DOM finding (input type=password, name="apiKey", etc.) describes
+      // the field's entire value as sensitive - it's metadata-derived, not
+      // a substring match within surrounding text. Without a textRange,
+      // BOTH the region-scoping filter in privacy-engine.ts AND
+      // redactText()'s own filter silently drop this finding before
+      // redaction ever runs, meaning the field's raw value was detected
+      // (counted as "Sensitive") but never actually masked/tokenized -
+      // it would sail through to the outbound payload unredacted. Give it
+      // a full-length range covering the element's whole text so it's
+      // treated as "redact this entire field's value", which is the
+      // correct semantics for a DOM/metadata-based finding.
+      textRange: element?.text ? { start: 0, end: element.text.length } : undefined,
       bbox: element?.bbox,
       confidence: result.confidence,
       severity: "MEDIUM", // finalized later by the risk engine, which also considers confidence/exposure

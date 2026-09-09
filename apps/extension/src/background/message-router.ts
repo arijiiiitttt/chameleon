@@ -39,7 +39,10 @@ export type RuntimeMessage =
   | { type: "START_TASK"; intent: string }
   | { type: "CANCEL_TASK" }
   | { type: "CAPTURE_VISIBLE_TAB" }
-  | { type: "CAPTURE_VISIBLE_TAB_RESULT"; dataUrl: string | null; error?: string };
+  | { type: "CAPTURE_VISIBLE_TAB_RESULT"; dataUrl: string | null; error?: string }
+  | { type: "CALL_REASONING_SERVER"; body: unknown }
+  | { type: "CALL_REASONING_SERVER_RESULT"; ok: true; data: unknown }
+  | { type: "CALL_REASONING_SERVER_RESULT"; ok: false; error: string };
 
 /**
  * Central message router for the extension's three contexts (popup,

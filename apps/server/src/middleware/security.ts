@@ -20,6 +20,14 @@ export function requestSizeGuard(req: Request, _res: Response, next: NextFunctio
 /** Structured error handler - never echoes back raw request bodies or stack traces that might contain sensitive text. */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction): void {
+  // Previously this never logged anything server-side - a provider failure
+  // (bad model id, invalid key, upstream 502, etc.) just returned a generic
+  // {code: "INTERNAL_ERROR"} to the client with zero trace in this
+  // terminal, making it look like "nothing happened" even though a real,
+  // diagnosable error occurred right here.
+  // eslint-disable-next-line no-console
+  console.error("[chameleon server] request failed:", err);
+
   if (err instanceof TypedError) {
     res.status(err.status).json({ error: { code: err.code } });
     return;

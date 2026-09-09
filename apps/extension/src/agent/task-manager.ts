@@ -3,7 +3,7 @@ export interface TaskLimits {
   timeoutMs: number;
 }
 
-const DEFAULT_LIMITS: TaskLimits = { maxIterations: 15, timeoutMs: 60_000 };
+const DEFAULT_LIMITS: TaskLimits = { maxIterations: 15, timeoutMs: 300_000 };
 
 export type TaskStopReason = "MAX_ITERATIONS" | "TIMEOUT" | "CANCELLED" | null;
 
