@@ -23,6 +23,8 @@
   th { color: var(--muted); font-weight: 500; }
   button { background: #1f6feb; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; margin-right: 8px; }
   button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  button[disabled] { opacity: 0.6; cursor: default; }
+  button.acknowledged { background: var(--ok); }
   .chart-placeholder { height: 80px; background: repeating-linear-gradient(90deg, #1a2332 0 2px, transparent 2px 12px); border-radius: 4px; position: relative; }
   .chart-line { position:absolute; bottom:10px; left:0; right:0; height:2px; background: var(--crit); }
   .op-info div { font-size: 13px; padding: 3px 0; }
@@ -82,7 +84,7 @@
         <tr><th>Temperature</th><td>87.4&deg;C</td></tr>
         <tr><th>Threshold</th><td>80.0&deg;C</td></tr>
         <tr><th>Severity</th><td><span class="badge anomaly">HIGH</span></td></tr>
-        <tr><th>Status</th><td>INVESTIGATION REQUIRED</td></tr>
+        <tr><th>Status</th><td id="anomaly-status">INVESTIGATION REQUIRED</td></tr>
       </table>
       <br />
       <button id="view-diagnostics" data-chameleon-action-hint="view-diagnostics">VIEW DIAGNOSTICS</button>
@@ -131,6 +133,34 @@
     </div>
   </div>
 </div>
+
+<script>
+  // This page ships with zero interactivity by default - buttons here
+  // are inert markup only, which is fine for pure perception/reasoning
+  // testing but means a real, successful click from an agent produces
+  // no visible change at all. This wires up the one action the demo
+  // task actually exercises so the result of a real click is observable
+  // on the page itself, not just in the extension's own status panel.
+  document.getElementById("acknowledge-incident").addEventListener("click", function () {
+    var btn = this;
+    if (btn.disabled) return; // already acknowledged - no-op on repeat clicks
+
+    btn.disabled = true;
+    btn.classList.add("acknowledged");
+    btn.textContent = "✓ ACKNOWLEDGED";
+    btn.setAttribute("aria-pressed", "true");
+
+    var statusCell = document.getElementById("anomaly-status");
+    if (statusCell) statusCell.textContent = "ACKNOWLEDGED";
+
+    var thermalBadge = document.querySelector("#thermal-row .badge");
+    if (thermalBadge) {
+      thermalBadge.textContent = "ACKNOWLEDGED";
+      thermalBadge.classList.remove("anomaly");
+      thermalBadge.classList.add("attention");
+    }
+  });
+</script>
 
 </body>
 </html>

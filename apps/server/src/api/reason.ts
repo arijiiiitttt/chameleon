@@ -23,8 +23,11 @@ export function createReasonHandler(provider: ReasoningProvider) {
     try {
       const plan = await planner.plan(parsed.data);
       res.json(plan);
-    } catch {
-      throw new TypedError("SERVER_TIMEOUT", 502);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[chameleon server] planner failed:", err);
+      const message = err instanceof Error ? err.message : "Unknown planner error";
+      throw new TypedError(`PLANNER_FAILED: ${message}`, 502);
     }
   };
 }

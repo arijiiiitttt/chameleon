@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import type { AgentStatusMessage } from "../background/message-router.js";
 
 const initialStatus: AgentStatusMessage = {
@@ -17,24 +17,61 @@ const initialStatus: AgentStatusMessage = {
   lastActionConfidence: null,
 };
 
+const DEMO_INTENT = "Analyze satellite anomaly; acknowledge incident.";
+
+/** Human-readable labels for the agent state machine */
+const STATE_LABELS: Record<string, string> = {
+  IDLE: "Idle",
+  OBSERVING: "Observing page…",
+  PERCEIVING: "Perceiving screen…",
+  CLASSIFYING_PRIVACY: "Classifying privacy…",
+  SANITIZING: "Sanitizing…",
+  FIREWALL_CHECK: "Firewall check…",
+  WAITING_FOR_SERVER: "Waiting for server…",
+  PLANNING: "Planning actions…",
+  VALIDATING_ACTION: "Validating action…",
+  AWAITING_CONFIRMATION: "Awaiting your confirmation…",
+  EXECUTING: "Executing action…",
+  VERIFYING: "Verifying…",
+  COMPLETED: "Completed",
+  FAILED: "Failed",
+  BLOCKED: "Blocked",
+};
+
+const TERMINAL_STATES = new Set(["COMPLETED", "FAILED", "BLOCKED"]);
+const BUSY_STATES = new Set([
+  "OBSERVING",
+  "PERCEIVING",
+  "CLASSIFYING_PRIVACY",
+  "SANITIZING",
+  "FIREWALL_CHECK",
+  "WAITING_FOR_SERVER",
+  "PLANNING",
+  "VALIDATING_ACTION",
+  "AWAITING_CONFIRMATION",
+  "EXECUTING",
+  "VERIFYING",
+]);
+
 export function JudgeDashboard(): React.ReactElement {
   const [status, setStatus] = useState<AgentStatusMessage>(initialStatus);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [intent, setIntent] = useState(DEMO_INTENT);
+  const [isStarting, setIsStarting] = useState(false);
+  const pollRef = useRef<number | null>(null);
 
-  const pullStatus = () => {
+  const pullStatus = useCallback(() => {
     setIsRefreshing(true);
     chrome.runtime.sendMessage({ type: "REQUEST_STATUS" }, (response) => {
-      if (chrome.runtime.lastError) {
-        setIsRefreshing(false);
-        return;
-      }
+      setIsRefreshing(false);
+      if (chrome.runtime.lastError) return;
       if (response && response.type === "AGENT_STATUS") {
         setStatus(response as AgentStatusMessage);
       }
-      setIsRefreshing(false);
     });
-  };
+  }, []);
 
+  // Listen for live status pushed from the content script
   useEffect(() => {
     function handleMessage(message: unknown) {
       if (
@@ -48,9 +85,87 @@ export function JudgeDashboard(): React.ReactElement {
     chrome.runtime.onMessage.addListener(handleMessage);
     pullStatus();
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
-  }, []);
+  }, [pullStatus]);
+
+  // Auto-poll while the agent is busy so the UI stays live
+  useEffect(() => {
+    const busy = BUSY_STATES.has(status.agentState);
+
+    if (busy) {
+      if (pollRef.current === null) {
+        pollRef.current = window.setInterval(pullStatus, 800);
+      }
+    } else {
+      if (pollRef.current !== null) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    }
+
+    return () => {
+      if (pollRef.current !== null) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [status.agentState, pullStatus]);
 
   const serverConnected = status.server.api === "CONNECTED";
+  const isBusy = BUSY_STATES.has(status.agentState);
+  const isTerminal = TERMINAL_STATES.has(status.agentState);
+  const canStart =
+    serverConnected && !isBusy && !isStarting && intent.trim().length > 0;
+
+  const handleStartTask = () => {
+    const trimmed = intent.trim();
+    if (!trimmed || !canStart) return;
+
+    setIsStarting(true);
+
+    // Optimistic UI: show that we are starting immediately
+    setStatus((prev) => ({
+      ...prev,
+      agentState: "OBSERVING",
+      lastActionConfidence: null,
+    }));
+
+    // No response callback — background returns false on purpose
+    chrome.runtime.sendMessage({ type: "START_TASK", intent: trimmed });
+
+    setTimeout(() => {
+      setIsStarting(false);
+      pullStatus();
+    }, 600);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && canStart) {
+      e.preventDefault();
+      handleStartTask();
+    }
+  };
+
+  const stageLabel = STATE_LABELS[status.agentState] ?? status.agentState;
+
+  // Banner style based on current phase. styles.* lookups are typed
+  // `CSSProperties | undefined` under this project's noUncheckedIndexedAccess
+  // setting even though every key below is a real, known key — falling back
+  // to {} keeps this type-safe without changing any visual behavior.
+  let progressBannerStyle: React.CSSProperties = styles.progressIdle ?? {};
+  let progressText = status.agentState === "IDLE" ? "Stopped" : "Ready";
+  if (isBusy || isStarting) {
+    progressBannerStyle = styles.progressBusy ?? {};
+    progressText = stageLabel;
+  } else if (status.agentState === "COMPLETED") {
+    progressBannerStyle = styles.progressSuccess ?? {};
+    progressText = "Task completed successfully";
+  } else if (status.agentState === "FAILED") {
+    progressBannerStyle = styles.progressError ?? {};
+    progressText = "Task failed";
+  } else if (status.agentState === "BLOCKED") {
+    progressBannerStyle = styles.progressBlocked ?? {};
+    progressText = "Task blocked by privacy / policy";
+  }
 
   return (
     <div style={styles.container}>
@@ -72,8 +187,12 @@ export function JudgeDashboard(): React.ReactElement {
       <div
         style={{
           ...styles.banner,
-          background: serverConnected ? "rgba(63, 185, 80, 0.12)" : "rgba(248, 81, 73, 0.12)",
-          borderColor: serverConnected ? "rgba(63, 185, 80, 0.35)" : "rgba(248, 81, 73, 0.35)",
+          background: serverConnected
+            ? "rgba(63, 185, 80, 0.12)"
+            : "rgba(248, 81, 73, 0.12)",
+          borderColor: serverConnected
+            ? "rgba(63, 185, 80, 0.35)"
+            : "rgba(248, 81, 73, 0.35)",
         }}
       >
         <span style={styles.bannerDot}>
@@ -90,9 +209,103 @@ export function JudgeDashboard(): React.ReactElement {
         <span style={{ fontSize: 13, fontWeight: 500 }}>
           {serverConnected ? "Server Connected" : "Server Disconnected"}
         </span>
-        <span style={{ marginLeft: "auto", fontSize: 11, opacity: 0.75, textTransform: "capitalize" }}>
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: 11,
+            opacity: 0.75,
+            textTransform: "capitalize",
+          }}
+        >
           {status.server.provider || "—"}
         </span>
+      </div>
+
+      {/* ── Live Progress / Result Banner ── */}
+      <div style={progressBannerStyle}>
+        <div style={styles.progressRow}>
+          {(isBusy || isStarting) && <span style={styles.spinner}>◌</span>}
+          {status.agentState === "COMPLETED" && <span>✅</span>}
+          {status.agentState === "FAILED" && <span>❌</span>}
+          {status.agentState === "BLOCKED" && <span>🛡️</span>}
+          <span style={{ fontWeight: 600, fontSize: 13 }}>{progressText}</span>
+        </div>
+        {(isBusy || isStarting) && (
+          <div style={styles.progressSub}>
+            Agent is working — do not close this tab
+          </div>
+        )}
+        {isTerminal && status.agentState === "COMPLETED" && (
+          <div style={styles.progressSub}>
+            All actions finished. Check the page for results.
+          </div>
+        )}
+        {isTerminal && status.agentState === "FAILED" && (
+          <div style={styles.progressSub}>
+            Something went wrong during perception, reasoning, or execution.
+          </div>
+        )}
+        {isTerminal && status.agentState === "BLOCKED" && (
+          <div style={styles.progressSub}>
+            Privacy firewall or policy blocked the request / action.
+          </div>
+        )}
+      </div>
+
+      {/* Start Task */}
+      <div style={styles.card}>
+        <div style={styles.cardHeader}>
+          <span style={styles.cardIcon}>▶</span>
+          <span style={styles.cardTitle}>Start Task</span>
+        </div>
+
+        <input
+          type="text"
+          value={intent}
+          onChange={(e) => setIntent(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="e.g. Analyze satellite anomaly; acknowledge incident."
+          disabled={isBusy || isStarting}
+          style={{
+            ...styles.input,
+            opacity: isBusy || isStarting ? 0.55 : 1,
+          }}
+        />
+
+        <div style={styles.taskActions}>
+          <button
+            onClick={handleStartTask}
+            disabled={!canStart}
+            style={{
+              ...styles.startBtn,
+              opacity: canStart ? 1 : 0.45,
+              cursor: canStart ? "pointer" : "not-allowed",
+            }}
+          >
+            {isStarting
+              ? "Starting…"
+              : isBusy
+                ? "Running…"
+                : isTerminal
+                  ? "Run Again"
+                  : "Start Task"}
+          </button>
+
+          <button
+            onClick={() => setIntent(DEMO_INTENT)}
+            style={styles.demoBtn}
+            title="Load demo intent"
+            disabled={isBusy || isStarting}
+          >
+            Demo
+          </button>
+        </div>
+
+        {!serverConnected && (
+          <div style={styles.hint}>
+            Start the server first: <code>npm run dev:server</code>
+          </div>
+        )}
       </div>
 
       {/* Status Pills */}
@@ -138,8 +351,17 @@ export function JudgeDashboard(): React.ReactElement {
                 <span style={styles.timingValue}>{(ms as number).toFixed(0)} ms</span>
               </div>
             ))}
-            <div style={{ ...styles.timingRow, borderTop: "1px solid #21262d", marginTop: 4, paddingTop: 6 }}>
-              <span style={{ ...styles.timingLabel, fontWeight: 600, color: "#e6edf3" }}>Total</span>
+            <div
+              style={{
+                ...styles.timingRow,
+                borderTop: "1px solid #21262d",
+                marginTop: 4,
+                paddingTop: 6,
+              }}
+            >
+              <span style={{ ...styles.timingLabel, fontWeight: 600, color: "#e6edf3" }}>
+                Total
+              </span>
               <span style={{ ...styles.timingValue, fontWeight: 600 }}>
                 {status.performance.totalMs.toFixed(0)} ms
               </span>
@@ -157,7 +379,21 @@ export function JudgeDashboard(): React.ReactElement {
         <div style={styles.agentRow}>
           <div>
             <div style={styles.agentLabel}>State</div>
-            <div style={styles.agentValue}>{status.agentState}</div>
+            <div
+              style={{
+                ...styles.agentValue,
+                color:
+                  status.agentState === "COMPLETED"
+                    ? "#3fb950"
+                    : status.agentState === "FAILED"
+                      ? "#f85149"
+                      : status.agentState === "BLOCKED"
+                        ? "#ffa657"
+                        : "#e6edf3",
+              }}
+            >
+              {status.agentState}
+            </div>
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={styles.agentLabel}>Confidence</div>
@@ -170,13 +406,20 @@ export function JudgeDashboard(): React.ReactElement {
         </div>
       </div>
 
-      <div style={styles.footer}>ISRO PS 26171 · On-device perception · Fail closed</div>
+      <div style={styles.footer}>
+        ISRO PS 26171 · On-device perception · Fail closed
+      </div>
     </div>
   );
 }
 
 function StatusPill({ label, value }: { label: string; value: string }) {
-  const good = value === "READY" || value === "ACTIVE" || value === "CONNECTED" || value === "OK";
+  const good =
+    value === "READY" ||
+    value === "ACTIVE" ||
+    value === "CONNECTED" ||
+    value === "OK";
+
   return (
     <div
       style={{
@@ -218,7 +461,9 @@ function MetricBox({
         background: highlight ? color + "12" : "#161b22",
       }}
     >
-      <div style={{ fontSize: 18, fontWeight: 700, color, lineHeight: 1.2 }}>{value}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color, lineHeight: 1.2 }}>
+        {value}
+      </div>
       <div style={{ fontSize: 10, color: "#8b949e", marginTop: 2 }}>{label}</div>
     </div>
   );
@@ -293,6 +538,59 @@ const styles: Record<string, React.CSSProperties> = {
     height: 8,
     borderRadius: "50%",
   },
+
+  // Progress banners
+  progressIdle: {
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: "1px solid #21262d",
+    background: "#161b22",
+    color: "#8b949e",
+  },
+  progressBusy: {
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: "1px solid rgba(56, 139, 253, 0.4)",
+    background: "rgba(56, 139, 253, 0.12)",
+    color: "#79c0ff",
+  },
+  progressSuccess: {
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: "1px solid rgba(63, 185, 80, 0.4)",
+    background: "rgba(63, 185, 80, 0.12)",
+    color: "#3fb950",
+  },
+  progressError: {
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: "1px solid rgba(248, 81, 73, 0.4)",
+    background: "rgba(248, 81, 73, 0.12)",
+    color: "#f85149",
+  },
+  progressBlocked: {
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: "1px solid rgba(255, 166, 87, 0.4)",
+    background: "rgba(255, 166, 87, 0.12)",
+    color: "#ffa657",
+  },
+  progressRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  progressSub: {
+    marginTop: 4,
+    fontSize: 11,
+    opacity: 0.85,
+  },
+  spinner: {
+    display: "inline-block",
+    animation: "spin 1s linear infinite",
+    fontSize: 14,
+  },
+
   pillsRow: {
     display: "flex",
     flexWrap: "wrap",
@@ -327,6 +625,48 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#8b949e",
     letterSpacing: 0.4,
     textTransform: "uppercase",
+  },
+  input: {
+    width: "100%",
+    padding: "9px 12px",
+    borderRadius: 8,
+    border: "1px solid #30363d",
+    background: "#0d1117",
+    color: "#e6edf3",
+    fontSize: 13,
+    outline: "none",
+    marginBottom: 10,
+  },
+  taskActions: {
+    display: "flex",
+    gap: 8,
+  },
+  startBtn: {
+    flex: 1,
+    padding: "9px 14px",
+    borderRadius: 8,
+    border: "none",
+    background: "linear-gradient(135deg, #1f6feb 0%, #388bfd 100%)",
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  demoBtn: {
+    padding: "9px 12px",
+    borderRadius: 8,
+    border: "1px solid #30363d",
+    background: "#0d1117",
+    color: "#8b949e",
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: "pointer",
+  },
+  hint: {
+    marginTop: 8,
+    fontSize: 11,
+    color: "#f85149",
+    opacity: 0.9,
   },
   metricsGrid: {
     display: "grid",

@@ -48,7 +48,146 @@ async function ensureVisionModelReady(): Promise<void> {
         visionModelsReady = true;
       });
   }
-  return visionModelInitPromise;
+  await visionModelInitPromise;
+}
+
+// ── Live on-page status overlay ──────────────────────────────────────
+// The extension popup closes whenever it loses focus (e.g. when
+// window.confirm() appears). This overlay lives in the page itself so
+// the user always sees continuous progress for the whole agent run.
+let statusOverlay: HTMLDivElement | null = null;
+let statusHideTimer: number | null = null;
+
+const STATE_LABELS: Record<string, string> = {
+  IDLE: "Idle",
+  OBSERVING: "Observing page…",
+  PERCEIVING: "Perceiving screen…",
+  CLASSIFYING_PRIVACY: "Classifying privacy…",
+  SANITIZING: "Sanitizing…",
+  FIREWALL_CHECK: "Firewall check…",
+  WAITING_FOR_SERVER: "Waiting for server…",
+  PLANNING: "Planning actions…",
+  VALIDATING_ACTION: "Validating action…",
+  AWAITING_CONFIRMATION: "Awaiting your confirmation…",
+  EXECUTING: "Executing action…",
+  VERIFYING: "Verifying…",
+  COMPLETED: "Completed ✓",
+  FAILED: "Failed ✗",
+  BLOCKED: "Blocked by privacy policy",
+};
+
+function ensureStatusOverlay(): HTMLDivElement {
+  if (statusOverlay && document.body.contains(statusOverlay)) {
+    return statusOverlay;
+  }
+
+  const el = document.createElement("div");
+  el.id = "chameleon-status-overlay";
+  el.setAttribute("data-chameleon", "status");
+  el.style.cssText = [
+    "position:fixed",
+    "top:16px",
+    "left:16px",
+    "z-index:2147483647",
+    "min-width:260px",
+    "max-width:340px",
+    "padding:12px 16px",
+    "border-radius:12px",
+    'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif',
+    "font-size:13px",
+    "line-height:1.4",
+    "color:#e6edf3",
+    "background:#161b22",
+    "border:1px solid #30363d",
+    "box-shadow:0 8px 24px rgba(0,0,0,0.45)",
+    "pointer-events:none",
+    "transition:opacity 0.25s ease",
+    "opacity:1",
+  ].join(";");
+  document.body.appendChild(el);
+  statusOverlay = el;
+  return el;
+}
+
+function updateStatusOverlay(state: string, extra?: string): void {
+  const el = ensureStatusOverlay();
+  el.style.opacity = "1";
+
+  if (statusHideTimer !== null) {
+    window.clearTimeout(statusHideTimer);
+    statusHideTimer = null;
+  }
+
+  const label = STATE_LABELS[state] ?? state;
+  const terminal = state === "COMPLETED" || state === "FAILED" || state === "BLOCKED";
+  const isBusy = !terminal && state !== "IDLE";
+
+  let color = "#8b949e";
+  let border = "#30363d";
+  if (state === "COMPLETED") {
+    color = "#3fb950";
+    border = "rgba(63,185,80,0.55)";
+  } else if (state === "FAILED") {
+    color = "#f85149";
+    border = "rgba(248,81,73,0.55)";
+  } else if (state === "BLOCKED") {
+    color = "#ffa657";
+    border = "rgba(255,166,87,0.55)";
+  } else if (isBusy) {
+    color = "#79c0ff";
+    border = "rgba(56,139,253,0.55)";
+  }
+
+  el.style.borderColor = border;
+
+  const spinner = isBusy
+    ? '<span style="display:inline-block;animation:chameleon-spin 1s linear infinite;margin-right:6px">◌</span>'
+    : "";
+
+  const sub = extra
+    ? `<div style="margin-top:4px;font-size:11px;color:#8b949e">${extra}</div>`
+    : terminal
+      ? `<div style="margin-top:4px;font-size:11px;color:#8b949e">${
+          state === "COMPLETED"
+            ? "All actions finished."
+            : state === "FAILED"
+              ? "Something went wrong during the run."
+              : "Privacy firewall or policy blocked the action."
+        }</div>`
+      : "";
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;font-weight:600;color:${color}">
+      ${spinner}<span>${label}</span>
+    </div>
+    ${sub}
+  `;
+
+  if (terminal) {
+    statusHideTimer = window.setTimeout(() => {
+      if (statusOverlay) {
+        statusOverlay.style.opacity = "0";
+        window.setTimeout(() => {
+          statusOverlay?.remove();
+          statusOverlay = null;
+        }, 300);
+      }
+      statusHideTimer = null;
+    }, 6000);
+  }
+}
+
+// Inject spinner keyframes once
+if (!document.getElementById("chameleon-spin-style")) {
+  const style = document.createElement("style");
+  style.id = "chameleon-spin-style";
+  style.textContent = `
+    @keyframes chameleon-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  `;
+  (document.head || document.documentElement).appendChild(style);
 }
 
 /**
@@ -97,6 +236,9 @@ function sendAgentStatus(snapshot: AgentLoopStatusSnapshot): void {
   } catch {
     /* no background listener yet (e.g. extension reloading) - never let a status ping break the agent loop */
   }
+
+  // Always mirror status onto the in-page overlay (popup may already be closed)
+  updateStatusOverlay(snapshot.agentState);
 }
 
 let requestCounter = 0;
@@ -181,12 +323,10 @@ function requestVisibleTabCapture(): Promise<string | null> {
 
 /**
  * Takes the raw captured screenshot, applies REAL pixel redaction
- * (`applyImageRedaction`) using the privacy pipeline's own
- * `imageRedactionRegions`, then downscales to a small thumbnail. Scales
- * each redaction region's bbox from CSS-pixel/viewport coordinates
- * (what `imageRedactionRegions` is expressed in, per `getBoundingClientRect`
- * throughout this codebase) into the captured PNG's own pixel coordinates
- * (which may differ under a non-1 devicePixelRatio) BEFORE drawing any
+ * (`applyImageRedaction`) using the privacy pipeline's own regions, and
+ * returns a small JPEG data-URL suitable for the optional VLM channel.
+ * Regions are scaled from CSS pixels to the capture's natural resolution
+ * (important on hi-DPI / devicePixelRatio > 1) BEFORE drawing any
  * redaction - applying unscaled regions on a hi-DPI capture would redact
  * the wrong area of the image, which would be worse than not redacting at
  * all. Fails closed to `undefined` (field omitted entirely) on any error.
@@ -296,22 +436,29 @@ async function sanitize(
 }
 
 /**
- * Server URL is a build-time configurable value (Vite env var), not
- * hardcoded - this is a real deployment concern: the extension must be
- * pointed at whichever server instance is actually running (localhost
- * during development, a real deployed endpoint for anything beyond a
- * local demo). Falls back to the local dev server default.
+ * The reasoning server call is relayed through the background service
+ * worker (see callServer below) - SERVER_URL itself now lives in
+ * service-worker.ts, since that's where the actual fetch() happens.
  */
-const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? "http://localhost:8787";
-
 async function callServer(request: SanitizedRequest): Promise<ActionPlanResponse> {
-  const response = await fetch(`${SERVER_URL}/api/v1/reason`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  });
-  if (!response.ok) throw new Error("SERVER_TIMEOUT");
-  return response.json();
+  // Relayed through the background service worker rather than fetched
+  // directly here, since a content script's fetch() runs in the PAGE's
+  // security context and is silently blocked by mixed-content rules on
+  // any https:// page hitting a plain http://localhost server - with no
+  // catchable error, which is exactly what "always fails, no console
+  // error" looks like. The background worker has its own origin.
+  const response = (await chrome.runtime.sendMessage({
+    type: "CALL_REASONING_SERVER",
+    body: request,
+  })) as { type: string; ok: boolean; data?: unknown; error?: string } | undefined;
+
+  if (!response) {
+    throw new Error("SERVER_CALL_NO_RESPONSE");
+  }
+  if (!response.ok) {
+    throw new Error(response.error ?? "SERVER_CALL_FAILED");
+  }
+  return response.data as ActionPlanResponse;
 }
 
 async function executeAction(action: unknown): Promise<{ success: boolean; error?: string }> {
@@ -322,16 +469,28 @@ async function executeAction(action: unknown): Promise<{ success: boolean; error
   const a = action as { type: string; targetId?: string; valueToken?: string; direction?: string; amount?: number };
   try {
     if (a.type === "CLICK" && a.targetId) {
-      registry.resolve(a.targetId)?.click();
+      const el = registry.resolve(a.targetId);
+      if (!el) {
+        return { success: false, error: `TARGET_NOT_FOUND: ${a.targetId}` };
+      }
+      el.click();
     } else if (a.type === "FOCUS" && a.targetId) {
-      registry.resolve(a.targetId)?.focus();
+      const el = registry.resolve(a.targetId);
+      if (!el) {
+        return { success: false, error: `TARGET_NOT_FOUND: ${a.targetId}` };
+      }
+      el.focus();
     } else if (a.type === "TYPE" && a.targetId && a.valueToken) {
       const raw = await vault.resolve(a.valueToken);
       const el = registry.resolve(a.targetId) as HTMLInputElement | null;
-      if (el && raw !== undefined) {
-        el.value = raw;
-        el.dispatchEvent(new Event("input", { bubbles: true }));
+      if (!el) {
+        return { success: false, error: `TARGET_NOT_FOUND: ${a.targetId}` };
       }
+      if (raw === undefined) {
+        return { success: false, error: `VALUE_TOKEN_NOT_FOUND: ${a.valueToken}` };
+      }
+      el.value = raw;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
     } else if (a.type === "SCROLL") {
       window.scrollBy({ top: a.direction === "DOWN" ? (a.amount ?? 0) : -(a.amount ?? 0), behavior: "smooth" });
     }
@@ -352,6 +511,9 @@ async function requestConfirmation(action: unknown): Promise<boolean> {
 chrome.runtime.onMessage.addListener((message) => {
   if (!isRuntimeMessage(message)) return;
   if (message.type === "START_TASK") {
+    // Immediate feedback on the page (popup will usually close on focus loss)
+    updateStatusOverlay("OBSERVING", "Task started…");
+
     const deps: AgentLoopDeps = {
       perceive: async () => (await perceiveCurrentScreen()).screen,
       sanitize,
@@ -361,9 +523,34 @@ chrome.runtime.onMessage.addListener((message) => {
       firewall,
       onStatus: sendAgentStatus,
     };
-    runAgentLoop(message.intent, deps).catch(() => {
-      /* errors already surfaced via state machine FAILED/BLOCKED terminal states */
-    });
+    runAgentLoop(message.intent, deps)
+      .then((result) => {
+        // The loop only calls onStatus mid-flight (after sanitize/planning
+        // stages) - it never reports the terminal state it actually landed
+        // on, so without this the popup/overlay just freezes on the last
+        // busy stage forever, even though the loop finished. Report the
+        // real final state (COMPLETED / FAILED / BLOCKED) here.
+        sendAgentStatus({
+          agentState: result.finalState,
+          iteration: result.iterations,
+          timings: {},
+          lastActionConfidence: null,
+        });
+        updateStatusOverlay(
+          result.finalState,
+          result.stopReason ?? undefined
+        );
+      })
+      .catch((err) => {
+        console.error("[CHAMELEON] Unexpected error in agent loop:", err);
+        sendAgentStatus({
+          agentState: "FAILED",
+          iteration: 0,
+          timings: {},
+          lastActionConfidence: null,
+        });
+        updateStatusOverlay("FAILED", "Unexpected error in agent loop");
+      });
   }
 });
 

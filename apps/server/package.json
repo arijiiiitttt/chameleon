@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:nodemon": "nodemon --watch src --ext ts,json --exec tsx src/index.ts",
     "start": "node dist/index.js",
     "build": "tsc -p tsconfig.json",
     "heroku-postbuild": "npm run build"
@@ -22,6 +23,7 @@
     "@types/express": "^4.17.21",
     "@types/cors": "^2.8.17",
     "tsx": "^4.16.5",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "nodemon": "^3.1.4"
   }
 }

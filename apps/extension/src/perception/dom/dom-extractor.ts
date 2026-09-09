@@ -70,9 +70,19 @@ export function extractDomElements(doc: Document): DomExtractionResult {
     const generated = nextId(interactive ? "el" : "txt");
     const id = stableAttrId(el, generated);
 
-    const text = (el.textContent ?? "").trim().slice(0, 300) || undefined;
-    const ariaLabel = el.getAttribute("aria-label") ?? undefined;
     const inputType = el.tagName === "INPUT" ? (el as HTMLInputElement).type : undefined;
+    const ariaLabel = el.getAttribute("aria-label") ?? undefined;
+
+    // <input>/<textarea> elements never have textContent - their actual
+    // content lives in .value. Without reading it here, PII typed or
+    // pre-filled into any input (API tokens, passwords, etc.) is
+    // completely invisible to the downstream regex/NER detectors, no
+    // matter how good those detectors' patterns are.
+    let text = (el.textContent ?? "").trim().slice(0, 300) || undefined;
+    if (!text && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) {
+      const value = (el as HTMLInputElement | HTMLTextAreaElement).value;
+      text = value ? value.trim().slice(0, 300) : undefined;
+    }
 
     elements.push({
       id,
